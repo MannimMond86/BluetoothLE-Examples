@@ -25,10 +25,7 @@ var uuid = function(uuid_with_dashes) {
 
 // constructor function, so you can call new BleUart():
 var BleUart = function (optional_service_uuid) {
-  // UUIDs for Nordic UART service
-  var serviceUUID = uuid('6e400001-b5a3-f393-e0a9-e50e24dcca9e'); // the service you want
-  var transmitUUID = uuid('6e400002-b5a3-f393-e0a9-e50e24dcca9e'); // TX from noble's perspective
-  var receiveUUID = uuid('6e400003-b5a3-f393-e0a9-e50e24dcca9e');  // RX from noble's perspective
+  var serviceUUID = uuid('6e400001-b5a3-f393-e0a9-e50e24dcca9e'); // default to Nordic UART service
   var receive, transmit;        // transmit and receive BLE characteristics
   var writeWithoutResponse;     // flag for write characteristic (based on Bluefruit version)
   var self = this;              // reference to the instance of BleUart
@@ -73,31 +70,37 @@ var BleUart = function (optional_service_uuid) {
   // the services and characteristics exploration function:
   // once you're connected, this gets run:
   function explore(error, services) {
+
     // this gets run by the for-loop at the end of the
     // explore function, below:
     function getCharacteristics(error, characteristics) {
 
+        // this is riskier, just checking properties instead of checking
+        // for the UUIDs of the characteristics we want
         characteristics.forEach(function(characteristic) {
           console.log(characteristic.toString());
-          if (characteristic.uuid === receiveUUID) {
+
+          if (characteristic.properties.indexOf("notify") > -1) {
             console.log("Discovered Receive Characteristic");
             receive = characteristic;
             receive.notify(true);    // turn on notifications
 
             receive.on('read', function(data, notification) {
-              console.log(JSON.stringify(data));
               if (notification) {   // if you got a notification
                 self.emit('data', String(data));  // emit a data event
               }
             });
-          } else if (characteristic.uuid === transmitUUID) {
+          }
+
+          // separate if statement since Laird and BlueGiga use one characteristic for TX and RX :(
+          if (characteristic.properties.indexOf("write") > -1 || characteristic.properties.indexOf("writeWithoutResponse") > -1) {
             console.log("Discovered Transmit Characteristic");
             transmit = characteristic;
             // Older Adafruit hardware is writeWithoutResponse
-            if (characteristic.properties.indexOf("writeWithoutResponse") > -1) {
-              writeWithoutResponse = true;
-            } else {
+            if (characteristic.properties.indexOf("write") > -1) {
               writeWithoutResponse = false;
+            } else {
+              writeWithoutResponse = true;
             }
           }
         });
